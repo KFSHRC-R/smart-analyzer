@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Link Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --p:#6366f1; --pd:#4f46e5; --s:#ec4899;
+      --amazon:#ff9900; --iherb:#6fbe44; --shein:#e91e8c; --tiktok:#69c9d0;
+      --learn:#10b981; --movie:#f59e0b;
+      --bg:#0a0a14; --card:#12121f; --card2:#1a1a2e;
+      --text:#e2e8f0; --muted:#64748b; --border:#1e1e35;
+      --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+    /* BG blobs */
+    .blobs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+    .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.1;animation:flt 10s ease-in-out infinite alternate}
+    .blob:nth-child(1){width:500px;height:500px;background:var(--p);top:-150px;left:-150px;animation-delay:0s}
+    .blob:nth-child(2){width:400px;height:400px;background:var(--s);top:40%;right:-100px;animation-delay:3s}
+    .blob:nth-child(3){width:450px;height:450px;background:var(--learn);bottom:-150px;left:25%;animation-delay:6s}
+    @keyframes flt{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,30px) scale(1.08)}}
+
+    /* Layout */
+    .app{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+
+    /* Top nav */
+    nav{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.5rem;border-bottom:1px solid var(--border);background:rgba(10,10,20,.8);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100}
+    .nav-brand{display:flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.05rem;background:linear-gradient(135deg,#818cf8,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .nav-tabs{display:flex;gap:.25rem}
+    .nav-tab{background:none;border:1px solid transparent;color:var(--muted);padding:.45rem 1rem;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:.4rem}
+    .nav-tab.on{background:var(--card2);border-color:var(--border);color:var(--text)}
+    .nav-tab:hover:not(.on){color:var(--text)}
+    .nav-tab .badge{background:var(--p);color:#fff;font-size:.65rem;padding:.1rem .4rem;border-radius:100px;min-width:18px;text-align:center}
+    .settings-btn{background:var(--card2);border:1px solid var(--border);color:var(--muted);padding:.45rem .9rem;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .2s}
+    .settings-btn:hover{color:var(--text);border-color:var(--p)}
+
+    /* Pages */
+    .page{display:none;flex:1}
+    .page.on{display:block}
+    .wrap{max-width:920px;margin:0 auto;padding:2rem 1.25rem 4rem}
+
+    /* Card */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:2rem;margin-bottom:1.5rem}
+
+    /* ── ANALYZE PAGE ── */
+    header{text-align:center;margin-bottom:2.5rem;padding-top:.5rem}
+    .logo{font-size:2.2rem;margin-bottom:.5rem}
+    header h1{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#818cf8,#ec4899,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.4rem}
+    header p{color:var(--muted);font-size:.92rem}
+    .plat-row{display:flex;justify-content:center;flex-wrap:wrap;gap:.5rem;margin-top:.9rem}
+    .pb{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;border-radius:100px;font-size:.75rem;font-weight:600;border:1px solid}
+    .pb.amazon{background:rgba(255,153,0,.1);color:var(--amazon);border-color:rgba(255,153,0,.25)}
+    .pb.iherb{background:rgba(111,190,68,.1);color:var(--iherb);border-color:rgba(111,190,68,.25)}
+    .pb.shein{background:rgba(233,30,140,.1);color:var(--shein);border-color:rgba(233,30,140,.25)}
+    .pb.tiktok{background:rgba(105,201,208,.1);color:var(--tiktok);border-color:rgba(105,201,208,.25)}
+    .pb.learn{background:rgba(16,185,129,.1);color:var(--learn);border-color:rgba(16,185,129,.25)}
+    .pb.movie{background:rgba(245,158,11,.1);color:var(--movie);border-color:rgba(245,158,11,.25)}
+
+    /* Input modes */
+    .input-modes{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem}
+    .mode-btn{background:#0a0a14;border:2px solid var(--border);border-radius:12px;padding:.7rem 1rem;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;color:var(--muted);transition:all .2s;display:flex;align-items:center;gap:.5rem}
+    .mode-btn.on{border-color:var(--p);color:var(--p);background:rgba(99,102,241,.08)}
+    .mode-btn:hover:not(.on){border-color:var(--p);color:var(--text)}
+
+    /* URL input */
+    .lbl{display:block;font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.55rem}
+    .url-wrap{position:relative;margin-bottom:1rem}
+    .url-inp{width:100%;background:#0a0a14;border:2px solid var(--border);border-radius:12px;padding:.9rem 5.5rem .9rem 1.1rem;color:var(--text);font-size:.96rem;font-family:inherit;outline:none;transition:all .3s}
+    .url-inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+    .url-inp::placeholder{color:var(--muted);font-size:.88rem}
+    .paste-btn{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:var(--p);color:#fff;border:none;border-radius:8px;padding:.38rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer;transition:all .2s}
+    .paste-btn:hover{background:var(--pd)}
+
+    /* Image drop zone */
+    .drop-zone{border:2px dashed var(--border);border-radius:14px;padding:2rem;text-align:center;cursor:pointer;transition:all .3s;margin-bottom:1rem;position:relative}
+    .drop-zone.drag{border-color:var(--p);background:rgba(99,102,241,.06)}
+    .drop-zone.has-img{border-color:var(--ok);border-style:solid}
+    .drop-zone input[type=file]{display:none}
+    .drop-icon{font-size:2.5rem;margin-bottom:.5rem}
+    .drop-txt{font-size:.9rem;color:var(--muted)}
+    .drop-txt strong{color:var(--text)}
+    .drop-preview{max-width:100%;max-height:200px;border-radius:10px;margin-top:.75rem;object-fit:contain}
+    .clear-img{position:absolute;top:.75rem;right:.75rem;background:var(--err);color:#fff;border:none;border-radius:6px;padding:.25rem .5rem;font-size:.75rem;cursor:pointer}
+
+    /* Platform detected */
+    .plat-det{display:none;align-items:center;gap:.5rem;padding:.5rem .85rem;border-radius:8px;font-size:.82rem;font-weight:600;margin-bottom:1rem}
+    .plat-det.on{display:flex}
+
+    /* Category toggle */
+    .cat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1.25rem}
+    @media(max-width:500px){.cat-grid{grid-template-columns:1fr}}
+    .cat-btn{background:#0a0a14;border:2px solid var(--border);border-radius:14px;padding:1rem;cursor:pointer;transition:all .3s;display:flex;flex-direction:column;align-items:center;gap:.4rem;color:var(--muted);font-family:inherit}
+    .cat-btn .ico{font-size:1.8rem}
+    .cat-btn .nm{font-weight:700;font-size:.95rem}
+    .cat-btn .ds{font-size:.75rem;text-align:center;line-height:1.4}
+    .cat-btn.on.shopping{border-color:var(--amazon);background:rgba(255,153,0,.07);color:var(--amazon);box-shadow:0 0 20px rgba(255,153,0,.12)}
+    .cat-btn.on.learning{border-color:var(--learn);background:rgba(16,185,129,.07);color:var(--learn);box-shadow:0 0 20px rgba(16,185,129,.12)}
+    .cat-btn.on.movie{border-color:var(--movie);background:rgba(245,158,11,.07);color:var(--movie);box-shadow:0 0 20px rgba(245,158,11,.12)}
+    .cat-btn:hover:not(.on){border-color:var(--p);color:var(--text)}
+
+    .api-warn{display:none;align-items:center;gap:.55rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:.8rem 1rem;font-size:.83rem;color:var(--warn);margin-bottom:1rem}
+    .api-warn.on{display:flex}
+
+    /* Go button */
+    .go-btn{width:100%;background:linear-gradient(135deg,var(--p),var(--s));border:none;border-radius:13px;padding:1rem;color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:.6rem;font-family:inherit}
+    .go-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 30px rgba(99,102,241,.3)}
+    .go-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .spin{display:none;width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .75s linear infinite}
+    .go-btn.ld .spin{display:block}
+    .go-btn.ld .btn-txt{display:none}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Results */
+    .results{display:none;animation:up .45s ease}
+    .results.on{display:block}
+    @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+
+    /* Tabs */
+    .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem;overflow-x:auto}
+    .tab{background:none;border:none;color:var(--muted);padding:.72rem 1.2rem;cursor:pointer;font-family:inherit;font-size:.86rem;font-weight:500;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+    .tab.on{color:var(--p);border-bottom-color:var(--p)}
+    .tab:hover:not(.on){color:var(--text)}
+    .panel{display:none;padding:0 1.5rem 1.5rem}
+    .panel.on{display:block}
+
+    /* Product result */
+    .prod-img-box{background:#fff;min-height:200px;display:flex;align-items:center;justify-content:center;border-radius:14px;margin-bottom:1.5rem;overflow:hidden}
+    .prod-img-box img{max-height:250px;max-width:100%;object-fit:contain}
+    .ph{padding:0 1.5rem 1rem}
+    .plat-tag{display:inline-block;padding:.22rem .7rem;border-radius:100px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem}
+    .plat-tag.amazon{background:rgba(255,153,0,.15);color:var(--amazon);border:1px solid rgba(255,153,0,.3)}
+    .plat-tag.iherb{background:rgba(111,190,68,.15);color:var(--iherb);border:1px solid rgba(111,190,68,.3)}
+    .plat-tag.shein{background:rgba(233,30,140,.15);color:var(--shein);border:1px solid rgba(233,30,140,.3)}
+    .prod-name{font-size:1.35rem;font-weight:700;margin-bottom:.55rem;line-height:1.4}
+    .brand-line{color:var(--muted);font-size:.86rem;margin-bottom:.85rem}
+    .price-row{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;margin-bottom:.85rem}
+    .price{font-size:1.9rem;font-weight:800}
+    .price.amazon{color:var(--amazon)}.price.iherb{color:var(--iherb)}.price.shein{color:var(--shein)}
+    .orig{font-size:1.05rem;color:var(--muted);text-decoration:line-through}
+    .disc{background:var(--err);color:#fff;padding:.22rem .5rem;border-radius:6px;font-size:.78rem;font-weight:800}
+    .star-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem}
+    .stars{color:#f59e0b;letter-spacing:1px}
+    .rv{color:var(--muted);font-size:.86rem}
+    .avail{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;border-radius:100px;font-size:.78rem;font-weight:600}
+    .avail.in{background:rgba(16,185,129,.12);color:var(--ok);border:1px solid rgba(16,185,129,.25)}
+    .avail.out{background:rgba(239,68,68,.12);color:var(--err);border:1px solid rgba(239,68,68,.25)}
+    .pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
+    .pc-box{background:#0a0a14;border-radius:12px;padding:1rem}
+    .pc-box h4{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+    .pc-box.pros h4{color:var(--ok)}.pc-box.cons h4{color:var(--err)}
+    .pc-box ul{list-style:none}
+    .pc-box ul li{display:flex;align-items:flex-start;gap:.45rem;padding:.35rem 0;font-size:.86rem;line-height:1.5}
+    .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.45rem}
+    .feat-item{display:flex;align-items:center;gap:.45rem;padding:.5rem .75rem;background:#0a0a14;border-radius:8px;font-size:.84rem}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--p);flex-shrink:0}
+    .verdict-box{background:#0a0a14;border-radius:12px;padding:1.15rem;border-left:4px solid var(--p)}
+    .verdict-lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.45rem}
+    .vc{display:inline-block;padding:.22rem .75rem;border-radius:100px;font-size:.8rem;font-weight:700;margin-bottom:.7rem}
+    .vc.yes{background:rgba(16,185,129,.15);color:var(--ok)}
+    .vc.no{background:rgba(239,68,68,.15);color:var(--err)}
+    .vc.meh{background:rgba(245,158,11,.15);color:var(--warn)}
+    .verdict-txt{font-size:.91rem;line-height:1.7}
+
+    /* Learning result */
+    .lh{display:flex;align-items:flex-start;gap:1.2rem;padding:1.5rem}
+    .l-ico{font-size:2.4rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:16px;width:72px;height:72px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .l-name{font-size:1.35rem;font-weight:700;margin-bottom:.45rem}
+    .bdgs{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.45rem}
+    .bdg{display:inline-flex;align-items:center;gap:.22rem;padding:.26rem .68rem;border-radius:100px;font-size:.75rem;font-weight:600;border:1px solid}
+    .bdg.free{background:rgba(16,185,129,.1);color:var(--ok);border-color:rgba(16,185,129,.25)}
+    .bdg.paid{background:rgba(239,68,68,.1);color:var(--err);border-color:rgba(239,68,68,.25)}
+    .bdg.freemium{background:rgba(245,158,11,.1);color:var(--warn);border-color:rgba(245,158,11,.25)}
+    .bdg.type{background:rgba(99,102,241,.1);color:var(--p);border-color:rgba(99,102,241,.25)}
+    .bdg.ease{background:rgba(16,185,129,.07);color:var(--learn);border-color:rgba(16,185,129,.18)}
+    .bdg.tt{background:rgba(105,201,208,.1);color:var(--tiktok);border-color:rgba(105,201,208,.25)}
+    .cost-big{font-size:1.25rem;font-weight:800;color:var(--learn)}
+    .free-trial{font-size:.76rem;color:var(--muted);margin-top:.2rem}
+    .eff-sec{padding:0 1.5rem 1rem}
+    .eff-lbl{font-size:.81rem;color:var(--muted);margin-bottom:.45rem;display:flex;justify-content:space-between}
+    .eff-lbl span:last-child{font-weight:800;color:var(--learn)}
+    .eff-track{height:9px;background:#0a0a14;border-radius:100px;overflow:hidden;border:1px solid var(--border)}
+    .eff-fill{height:100%;background:linear-gradient(90deg,var(--learn),var(--p));border-radius:100px;transition:width 1s ease}
+    .time-pill{display:inline-flex;align-items:center;gap:.4rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.18);color:var(--p);padding:.42rem .95rem;border-radius:8px;font-size:.83rem;font-weight:600;margin:0 1.5rem 1.25rem}
+    .mono-list{list-style:none}
+    .mono-list li{display:flex;align-items:flex-start;gap:.7rem;padding:.7rem;background:#0a0a14;border-radius:9px;margin-bottom:.45rem;font-size:.86rem;line-height:1.5}
+    .mono-list li .mi{font-size:1.05rem;flex-shrink:0}
+    .desc-txt{font-size:.91rem;line-height:1.75}
+
+    /* Action buttons */
+    .acts{display:flex;gap:.85rem;padding:1.5rem;border-top:1px solid var(--border)}
+    .act{flex:1;padding:.72rem;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:.88rem;font-weight:600;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.45rem;text-decoration:none}
+    .act.prim{background:linear-gradient(135deg,var(--p),var(--s));color:#fff}
+    .act.prim:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.28)}
+    .act.sec{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+    .act.sec:hover{border-color:var(--p);color:var(--p)}
+    .act.grn{background:rgba(16,185,129,.15);color:var(--ok);border:1px solid rgba(16,185,129,.3)}
+    .act.grn:hover{background:rgba(16,185,129,.25)}
+
+    /* ── SUBMISSIONS PAGE ── */
+    .sub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+    .sub-title{font-size:1.4rem;font-weight:800}
+    .sub-controls{display:flex;gap:.6rem;flex-wrap:wrap}
+    .search-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.55rem 1rem;color:var(--text);font-family:inherit;font-size:.86rem;outline:none;width:220px;transition:border-color .2s}
+    .search-box:focus{border-color:var(--p)}
+    .search-box::placeholder{color:var(--muted)}
+    .filter-btn{background:var(--card);border:1px solid var(--border);color:var(--muted);padding:.52rem .9rem;border-radius:9px;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:600;transition:all .2s}
+    .filter-btn.on{border-color:var(--p);color:var(--p);background:rgba(99,102,241,.08)}
+    .filter-btn:hover:not(.on){color:var(--text)}
+
+    /* Submission grid */
+    .sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+    .sub-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:all .25s;position:relative}
+    .sub-card:hover{border-color:var(--p);transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.3)}
+    .sub-card-header{padding:1rem 1rem .65rem}
+    .sub-cat-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .65rem;border-radius:100px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.55rem}
+    .sub-cat-badge.shopping{background:rgba(255,153,0,.12);color:var(--amazon);border:1px solid rgba(255,153,0,.25)}
+    .sub-cat-badge.learning{background:rgba(16,185,129,.12);color:var(--learn);border:1px solid rgba(16,185,129,.25)}
+    .sub-cat-badge.movie{background:rgba(245,158,11,.12);color:var(--movie);border:1px solid rgba(245,158,11,.25)}
+    .sub-name{font-size:.95rem;font-weight:700;margin-bottom:.35rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .sub-meta{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+    .sub-price{font-weight:700;color:var(--text)}
+    .sub-verdict{display:inline-block;padding:.15rem .5rem;border-radius:6px;font-size:.72rem;font-weight:700}
+    .sub-verdict.yes{background:rgba(16,185,129,.12);color:var(--ok)}
+    .sub-verdict.no{background:rgba(239,68,68,.12);color:var(--err)}
+    .sub-verdict.meh{background:rgba(245,158,11,.12);color:var(--warn)}
+    .sub-footer{padding:.65rem 1rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .sub-date{font-size:.73rem;color:var(--muted)}
+    .sub-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:.2rem .4rem;border-radius:5px;transition:all .2s}
+    .sub-del:hover{color:var(--err);background:rgba(239,68,68,.1)}
+    .sub-empty{text-align:center;padding:4rem 2rem;color:var(--muted)}
+    .sub-empty .big{font-size:3rem;margin-bottom:1rem}
+    .sub-empty p{font-size:.95rem;margin-bottom:1.5rem}
+
+    /* Detail modal */
+    .detail-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:300;overflow-y:auto}
+    .detail-bg.on{display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem}
+    .detail-wrap{background:var(--card);border:1px solid var(--border);border-radius:20px;width:100%;max-width:760px;overflow:hidden;position:relative;margin:auto}
+    .detail-close{position:absolute;top:1rem;right:1rem;background:var(--card2);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;z-index:10;transition:all .2s}
+    .detail-close:hover{background:var(--err);border-color:var(--err)}
+
+    /* Settings modal */
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:500;align-items:center;justify-content:center}
+    .modal-bg.on{display:flex}
+    .modal{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:2rem;width:90%;max-width:480px;max-height:90vh;overflow-y:auto}
+    .modal h2{font-size:1.15rem;margin-bottom:1.5rem}
+    .fg{margin-bottom:1.15rem}
+    .fg label{display:block;font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.45rem}
+    .fg input{width:100%;background:#0a0a14;border:1px solid var(--border);border-radius:9px;padding:.72rem 1rem;color:var(--text);font-size:.91rem;font-family:inherit;outline:none;transition:border-color .2s}
+    .fg input:focus{border-color:var(--p)}
+    .fg .hint{font-size:.76rem;color:var(--muted);margin-top:.38rem}
+    .fg .hint a{color:var(--p)}
+    .setup-box{background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);border-radius:12px;padding:.9rem 1.15rem;margin-bottom:1.1rem}
+    .setup-box h4{color:var(--p);font-size:.85rem;margin-bottom:.45rem}
+    .setup-box ol{margin-left:1.15rem}
+    .setup-box ol li{font-size:.8rem;color:var(--muted);margin-bottom:.28rem;line-height:1.5}
+    .setup-box ol li code{background:#0a0a14;padding:.1rem .38rem;border-radius:4px;color:var(--text);font-size:.77rem}
+    .modal-btns{display:flex;gap:.85rem;margin-top:1.5rem}
+
+    /* Toast */
+    .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(120px);background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:.72rem 1.35rem;font-size:.86rem;transition:transform .3s ease;z-index:2000;display:flex;align-items:center;gap:.5rem;white-space:nowrap}
+    .toast.on{transform:translateX(-50%) translateY(0)}
+    .toast.success{border-left:3px solid var(--ok)}
+    .toast.error{border-left:3px solid var(--err)}
+    .toast.info{border-left:3px solid var(--p)}
+
+    @media(max-width:600px){
+      .pc-grid,.feat-grid{grid-template-columns:1fr}
+      .acts{flex-direction:column}
+      .lh{flex-direction:column}
+      .sub-grid{grid-template-columns:1fr}
+      .input-modes{grid-template-columns:1fr 1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="blobs"><div class="blob"></div><div class="blob"></div><div class="blob"></div></div>
+
+<div class="app">
+  <!-- NAV -->
+  <nav>
+    <div class="nav-brand">🔍 Smart Link Analyzer</div>
+    <div class="nav-tabs">
+      <button class="nav-tab on" id="navAnalyze" onclick="showPage('analyze')">🔍 Analyze</button>
+      <button class="nav-tab" id="navSubs" onclick="showPage('subs')">
+        📋 My Submissions <span class="badge" id="subCount">0</span>
+      </button>
+    </div>
+    <button class="settings-btn" onclick="openSettings()">⚙️ Settings</button>
+  </nav>
+
+  <!-- ═══ ANALYZE PAGE ═══ -->
+  <div class="page on" id="pageAnalyze">
+    <div class="wrap">
+      <header>
+        <div class="logo">🔍</div>
+        <h1>Smart Link Analyzer</h1>
+        <p>Paste a link or drop a screenshot — I'll analyze it and save it for you</p>
+        <div class="plat-row">
+          <span class="pb amazon">🛒 Amazon</span>
+          <span class="pb iherb">🌿 iHerb</span>
+          <span class="pb shein">👗 Shein</span>
+          <span class="pb tiktok">🎵 TikTok</span>
+          <span class="pb learn">📚 Courses / Tools</span>
+          <span class="pb movie">🎬 Movies</span>
+        </div>
+      </header>
+
+      <div class="card">
+        <!-- Input mode toggle -->
+        <label class="lbl">📥 Input method</label>
+        <div class="input-modes">
+          <button class="mode-btn on" id="modeUrl" onclick="setMode('url')">🔗 Paste a Link</button>
+          <button class="mode-btn" id="modeImg" onclick="setMode('img')">🖼️ Drop a Screenshot</button>
+        </div>
+
+        <!-- URL input -->
+        <div id="urlSection">
+          <label class="lbl">Your link</label>
+          <div class="url-wrap">
+            <input type="url" class="url-inp" id="urlInput"
+              placeholder="Any product link · amazon.com · iherb.com · shein.com · noon.com · any store..."
+              oninput="detectPlatform(this.value)">
+            <button class="paste-btn" onclick="pasteURL()">📋 Paste</button>
+          </div>
+          <div class="plat-det" id="platDet"></div>
+        </div>
+
+        <!-- Movie name input -->
+        <div id="movieSection" style="display:none">
+          <label class="lbl">🎬 Movie or series name</label>
+          <div class="url-wrap">
+            <input type="text" class="url-inp" id="movieInput" placeholder="e.g. Gladiator II · Dune · Breaking Bad · Interstellar...">
+          </div>
+        </div>
+
+        <!-- Image drop -->
+        <div id="imgSection" style="display:none">
+          <label class="lbl">Screenshot or photo</label>
+          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
+          <div class="drop-zone" id="dropZone"
+            ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+            onclick="document.getElementById('fileInput').click()">
+            <div id="dropContent">
+              <div class="drop-icon">📸</div>
+              <div class="drop-txt"><strong>Tap to choose photo</strong> or drag & drop</div>
+              <div class="drop-txt" style="font-size:.78rem;margin-top:.25rem">Product photo · TikTok screenshot · course page · any image</div>
+            </div>
+            <img id="dropPreview" class="drop-preview" style="display:none">
+            <button class="clear-img" id="clearImg" style="display:none" onclick="clearImage(event)">✕ Remove</button>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <label class="lbl">📂 What type?</label>
+        <div class="cat-grid">
+          <button class="cat-btn shopping" id="catShop" onclick="setCat('shopping')">
+            <span class="ico">🛍️</span>
+            <span class="nm">Shopping</span>
+            <span class="ds">Any link or drop a photo<br>Identify product + find it</span>
+          </button>
+          <button class="cat-btn learning" id="catLearn" onclick="setCat('learning')">
+            <span class="ico">📚</span>
+            <span class="nm">Learning</span>
+            <span class="ds">TikTok · Courses · Tools<br>Cost, value, how to earn?</span>
+          </button>
+          <button class="cat-btn movie" id="catMovie" onclick="setCat('movie')">
+            <span class="ico">🎬</span>
+            <span class="nm">Movie</span>
+            <span class="ds">Any film or series<br>Worth watching? Where?</span>
+          </button>
+        </div>
+
+        <div class="api-warn on" id="apiWarn">⚠️ Add your free Google AI key in ⚙️ Settings — get it free at aistudio.google.com/apikey</div>
+
+        <button class="go-btn" id="goBtn" onclick="analyze()">
+          <div class="spin"></div>
+          <span class="btn-txt">🚀 Analyze</span>
+        </button>
+      </div>
+
+      <!-- Results -->
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+
+  <!-- ═══ SUBMISSIONS PAGE ═══ -->
+  <div class="page" id="pageSubs">
+    <div class="wrap">
+      <div class="sub-header">
+        <div class="sub-title">📋 My Submissions</div>
+        <div class="sub-controls">
+          <input type="search" class="search-box" id="searchBox" placeholder="🔍 Search..." oninput="renderSubs()">
+          <button class="filter-btn on" data-f="all" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn" data-f="shopping" onclick="setFilter('shopping',this)">🛍️ Shopping</button>
+          <button class="filter-btn" data-f="learning" onclick="setFilter('learning',this)">📚 Learning</button>
+          <button class="filter-btn" data-f="movie" onclick="setFilter('movie',this)">🎬 Movies</button>
+        </div>
+      </div>
+      <div class="sub-grid" id="subGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail modal -->
+<div class="detail-bg" id="detailBg" onclick="closeDetail(event)">
+  <div class="detail-wrap" id="detailWrap">
+    <button class="detail-close" onclick="closeDetailBtn()">✕</button>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ Settings</h2>
+    <div class="setup-box" style="border-color:rgba(16,185,129,.25);background:rgba(16,185,129,.05)">
+      <h4 style="color:var(--ok)">🆓 Get your FREE Google AI API key (for Shopping & Learning)</h4>
+      <ol>
+        <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></li>
+        <li>Sign in with your Google account</li>
+        <li>Click <strong>Create API key</strong> → Select any project → Create</li>
+        <li>Copy the key (starts with <code>AIza</code>) and paste below</li>
+      </ol>
+    </div>
+    <div class="fg">
+      <label>Google AI API Key — Free (Shopping & Learning analysis)</label>
+      <input type="password" id="apiKeyIn" placeholder="AIzaSy...">
+      <p class="hint">100% free · No credit card · 15 requests/minute · Stored only in your browser.<br>Get it free at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>
+    </div>
+    <div class="setup-box">
+      <h4>📊 Google Sheets (optional — auto-saves every result)</h4>
+      <ol>
+        <li>Open <a href="https://script.google.com" target="_blank">script.google.com</a> → New Project</li>
+        <li>Paste the code from <code>apps-script.js</code> in your Cowork folder</li>
+        <li>Replace <code>YOUR_GOOGLE_SHEET_ID_HERE</code> with: <code style="color:#818cf8;word-break:break-all">1-xeElt1gjpefOh6MYKjkLIJ0LxdcPdtrz2l5JrAj0Fs</code></li>
+        <li>Deploy → New Deployment → Web App → Anyone → Deploy</li>
+        <li>Copy the Web App URL and paste below</li>
+      </ol>
+    </div>
+    <div class="fg">
+      <label>Google Apps Script URL</label>
+      <input type="url" id="sheetsIn" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <div class="setup-box" style="border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.05)">
+      <h4 style="color:var(--movie)">🎬 TMDb API Key (free — for movie lookup)</h4>
+      <ol>
+        <li>Go to <a href="https://www.themoviedb.org/signup" target="_blank">themoviedb.org/signup</a> → create free account</li>
+        <li>Go to <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org/settings/api</a></li>
+        <li>Click "Create" → choose "Developer" → fill the form</li>
+        <li>Copy the <code>API Key (v3 auth)</code> and paste below</li>
+      </ol>
+    </div>
+    <div class="fg">
+      <label>TMDb API Key (for 🎬 Movie lookups — free)</label>
+      <input type="password" id="tmdbKeyIn" placeholder="e.g. a1b2c3d4e5f6...">
+      <p class="hint">Free at <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org/settings/api</a> — used only for movie name + streaming platforms</p>
+    </div>
+    <div class="modal-btns">
+      <button class="act prim" onclick="saveSettings()">💾 Save</button>
+      <button class="act sec" onclick="closeSettings()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let cat = null, inputMode = 'url', imgBase64 = null, imgMime = null, current = null, subFilter = 'all';
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  checkApiKey();
+  renderSubs();
+  updateSubCount();
+  const k = localStorage.getItem('api_key'), s = localStorage.getItem('sheets_url'), t = localStorage.getItem('tmdb_key');
+  if (k) document.getElementById('apiKeyIn').value = k;
+  if (s) document.getElementById('sheetsIn').value = s;
+  if (t) document.getElementById('tmdbKeyIn').value = t;
+});
+
+// ─── Pages ────────────────────────────────────────────────────────────────────
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('on'));
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('on'));
+  document.getElementById('page' + (p === 'analyze' ? 'Analyze' : 'Subs')).classList.add('on');
+  document.getElementById('nav' + (p === 'analyze' ? 'Analyze' : 'Subs')).classList.add('on');
+  if (p === 'subs') renderSubs();
+}
+
+// ─── Input Mode ───────────────────────────────────────────────────────────────
+function setMode(m) {
+  inputMode = m;
+  document.getElementById('modeUrl').classList.toggle('on', m === 'url');
+  document.getElementById('modeImg').classList.toggle('on', m === 'img');
+  document.getElementById('urlSection').style.display = m === 'url' ? 'block' : 'none';
+  document.getElementById('imgSection').style.display = m === 'img' ? 'block' : 'none';
+}
+
+// ─── Image Drop ───────────────────────────────────────────────────────────────
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
+function handleDragLeave(e) { document.getElementById('dropZone').classList.remove('drag'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+}
+function handleFile(file) {
+  if (!file) return;
+  const img = new Image();
+  const objectUrl = URL.createObjectURL(file);
+  img.onload = () => {
+    // Compress to max 1200px and JPEG 85% — keeps quality while staying under API limits
+    const MAX = 1200;
+    let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else        { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const compressed = canvas.toDataURL('image/jpeg', 0.85);
+    imgBase64 = compressed.split(',')[1];
+    imgMime = 'image/jpeg';
+    URL.revokeObjectURL(objectUrl);
+
+    const preview = document.getElementById('dropPreview');
+    const content = document.getElementById('dropContent');
+    const clearBtn = document.getElementById('clearImg');
+    const zone = document.getElementById('dropZone');
+    preview.src = compressed; preview.style.display = 'block';
+    content.style.display = 'none'; clearBtn.style.display = 'block';
+    zone.classList.add('has-img');
+    toast('Image ready ✅ — tap Analyze', 'success');
+  };
+  img.onerror = () => { URL.revokeObjectURL(objectUrl); toast('Could not load image — try another one', 'error'); };
+  img.src = objectUrl;
+}
+function clearImage(e) {
+  e.stopPropagation();
+  imgBase64 = null; imgMime = null;
+  document.getElementById('dropPreview').style.display = 'none';
+  document.getElementById('dropContent').style.display = 'block';
+  document.getElementById('clearImg').style.display = 'none';
+  document.getElementById('dropZone').classList.remove('has-img');
+  document.getElementById('fileInput').value = '';
+}
+
+// ─── Platform detection ───────────────────────────────────────────────────────
+function detectPlatform(url) {
+  const el = document.getElementById('platDet');
+  let info = null;
+  if (/amazon\./i.test(url))         info = {icon:'🛒', name:'Amazon',  cls:'amazon pb', cat:'shopping'};
+  else if (/iherb\./i.test(url))     info = {icon:'🌿', name:'iHerb',   cls:'iherb pb',  cat:'shopping'};
+  else if (/shein\./i.test(url))     info = {icon:'👗', name:'Shein',   cls:'shein pb',  cat:'shopping'};
+  else if (/tiktok\./i.test(url))    info = {icon:'🎵', name:'TikTok',  cls:'tiktok pb', cat:'learning'};
+  else if (/udemy\./i.test(url))     info = {icon:'🎓', name:'Udemy',   cls:'learn pb',  cat:'learning'};
+  else if (/coursera\./i.test(url))  info = {icon:'🎓', name:'Coursera',cls:'learn pb',  cat:'learning'};
+  else if (/youtube\./i.test(url))   info = {icon:'▶️', name:'YouTube', cls:'learn pb',  cat:'learning'};
+  if (info) {
+    el.className = `plat-det on ${info.cls}`;
+    el.innerHTML = `${info.icon} Detected: <strong>${info.name}</strong>`;
+    el.style.cssText = 'display:flex';
+    if (!cat) setCat(info.cat);
+  } else {
+    el.style.cssText = 'display:none';
+  }
+}
+
+// ─── Category ─────────────────────────────────────────────────────────────────
+function setCat(c) {
+  cat = c;
+  document.getElementById('catShop').classList.toggle('on', c === 'shopping');
+  document.getElementById('catLearn').classList.toggle('on', c === 'learning');
+  document.getElementById('catMovie').classList.toggle('on', c === 'movie');
+  const isMovie = c === 'movie';
+  document.getElementById('movieSection').style.display = isMovie ? 'block' : 'none';
+  document.getElementById('modeUrl').parentElement.style.display = isMovie ? 'none' : 'grid';
+  document.getElementById('urlSection').style.display = isMovie ? 'none' : (inputMode === 'url' ? 'block' : 'none');
+  document.getElementById('imgSection').style.display = isMovie ? 'none' : (inputMode === 'img' ? 'block' : 'none');
+}
+
+// ─── Paste ────────────────────────────────────────────────────────────────────
+async function pasteURL() {
+  try { const t = await navigator.clipboard.readText(); const inp = document.getElementById('urlInput'); inp.value = t; detectPlatform(t); }
+  catch { toast('Paste manually — clipboard blocked', 'error'); }
+}
+
+// ─── Analyze ─────────────────────────────────────────────────────────────────
+async function analyze() {
+  const url = document.getElementById('urlInput').value.trim();
+  const apiKey = localStorage.getItem('api_key');
+  if (!cat) { toast('Choose a category first', 'error'); return; }
+
+  // Movies use free TMDb API — separate flow
+  if (cat === 'movie') {
+    const title = document.getElementById('movieInput').value.trim();
+    if (!title) { toast('Enter a movie or series name', 'error'); return; }
+    await analyzeMovieFree(title);
+    return;
+  }
+
+  if (!apiKey) { toast('Add your Google AI key in Settings first', 'error'); openSettings(); return; }
+  if (inputMode === 'url' && !url) { toast('Please enter a URL', 'error'); return; }
+  if (inputMode === 'img' && !imgBase64) { toast('Please upload or drop a photo or screenshot', 'error'); return; }
+
+  const btn = document.getElementById('goBtn');
+  btn.classList.add('ld'); btn.disabled = true;
+
+  try {
+    let pageContent = '';
+    if (inputMode === 'url') {
+      toast('Fetching page content…', 'info');
+      try {
+        const px = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, {signal: AbortSignal.timeout(12000)});
+        const data = await px.json();
+        const doc = new DOMParser().parseFromString(data.contents || '', 'text/html');
+        doc.querySelectorAll('script,style,nav,footer,aside,iframe').forEach(e => e.remove());
+        pageContent = (doc.body?.textContent || '').replace(/\s+/g,' ').trim().slice(0, 9000);
+      } catch { pageContent = 'Page content unavailable — analyze from URL and knowledge.'; }
+    }
+
+    toast('Analyzing with Claude AI…', 'info');
+
+    // Build Gemini request parts
+    const parts = [];
+    if (inputMode === 'img' && imgBase64) {
+      parts.push({ inline_data: { mime_type: imgMime, data: imgBase64 } });
+    }
+    parts.push({ text: buildPrompt(url, cat, pageContent, inputMode) });
+
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>{}); throw new Error(e?.error?.message || `API error ${resp.status}`); }
+
+    const data = await resp.json();
+    const raw = data.candidates[0].content.parts[0].text;
+    let result;
+    try { const m = raw.match(/```json\s*([\s\S]*?)\s*```/); result = JSON.parse(m ? m[1] : raw); }
+    catch { const s = raw.indexOf('{'), e = raw.lastIndexOf('}')+1; result = JSON.parse(raw.slice(s, e)); }
+
+    current = { ...result, url: url||'(image)', inputMode, category:cat, timestamp: new Date().toISOString() };
+    showResult(current);
+    saveHist(current);
+    const sUrl = localStorage.getItem('sheets_url');
+    if (sUrl) saveToSheets(current);
+    toast('Analysis complete ✨', 'success');
+  } catch(err) {
+    console.error(err);
+    const msg = err.message || 'Something went wrong';
+    toast(`❌ ${msg}`, 'error');
+    const sec = document.getElementById('results');
+    sec.classList.add('on');
+    sec.innerHTML = `<div class="card" style="border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.06);padding:1.5rem;text-align:center">
+      <div style="font-size:2rem;margin-bottom:.75rem">❌</div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:.5rem;color:var(--err)">Analysis Failed</div>
+      <div style="font-size:.88rem;color:var(--muted);line-height:1.6;margin-bottom:1.25rem">${esc(msg)}</div>
+      ${msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key') ? `<button class="act prim" onclick="openSettings()" style="margin:0 auto;max-width:220px;display:inline-flex">⚙️ Open Settings</button>` : ''}
+      ${msg.toLowerCase().includes('429') ? `<p style="font-size:.8rem;color:var(--warn);margin-top:.75rem">⚠️ Free limit reached — wait 1 minute and try again</p>` : ''}
+    </div>`;
+  } finally { btn.classList.remove('ld'); btn.disabled = false; }
+}
+
+// ─── Prompts ──────────────────────────────────────────────────────────────────
+function buildPrompt(url, category, content, mode) {
+  const isTikTok = /tiktok\./i.test(url);
+  const platform = /amazon\./i.test(url)?'Amazon':/iherb\./i.test(url)?'iHerb':/shein\./i.test(url)?'Shein':isTikTok?'TikTok':'Unknown';
+  const isImage = mode === 'img';
+  const ctx = isImage ? 'the screenshot/image provided' : `URL: ${url}\n\nPage content:\n${content}`;
+
+  if (category === 'shopping') {
+    if (isImage) {
+      return `You are a product identification expert. Look carefully at this product image and identify exactly what product it is.
+Return ONLY valid JSON (no markdown). For the search links, replace SEARCH with the product name and brand URL-encoded (use + for spaces):
+{"platform":"Image","name":"Exact product name","brand":"Brand name or Unknown","productCategory":"e.g. Skincare / Electronics / Clothing","price":"~$XX estimated","description":"What this product is and what it does in 2 sentences","features":["f1","f2","f3"],"pros":["p1","p2","p3"],"cons":["c1","c2"],"opinion":"2 sentence honest opinion on this type of product","verdict":"Recommended","amazonLink":"https://www.amazon.com/s?k=SEARCH","iherbLink":"https://www.iherb.com/search?kw=SEARCH","sheinLink":"https://www.shein.com/catalog/index.html?keywords=SEARCH","imageUrl":null,"buyLink":null}`;
+    }
+    return `You are an expert product analyst. Analyze this product from ${ctx}.
+Detect the platform from the URL if possible (Amazon, iHerb, Shein, or write the actual site name).
+Return ONLY valid JSON (no markdown):
+{"platform":"${platform !== 'Unknown' ? platform : 'detect from URL'}","name":"Full product name","brand":"Brand","productCategory":"e.g. Supplements","price":"price or null","originalPrice":"original price or null","discount":"discount % or null","rating":null,"reviewCount":null,"availability":"In Stock or Unknown","description":"2-3 sentences","features":["f1","f2","f3","f4"],"pros":["p1","p2","p3"],"cons":["c1","c2"],"shippingInfo":"shipping info or null","opinion":"2-3 sentence honest opinion","verdict":"Recommended","imageUrl":null,"buyLink":"${url}","amazonLink":null,"iherbLink":null,"sheinLink":null}`;
+  } else if (category === 'movie') {
+    return `You are an expert film critic and movie analyst. Analyze this movie or TV series from ${ctx}. If it is a screenshot, identify the movie/show from any visible title, poster, logo, subtitles, or visual style.
+Return ONLY valid JSON (no markdown):
+{"name":"Full movie or series title","year":2024,"type":"Movie or Series","genre":["Action","Thriller"],"director":"Director name or null","cast":["Actor 1","Actor 2","Actor 3"],"imdbRating":7.5,"rtScore":85,"ageRating":"PG-13","duration":"2h 15m","language":"English","country":"USA","plot":"2-3 sentence plot summary without major spoilers","pros":["p1","p2","p3"],"cons":["c1","c2"],"streamingPlatforms":["Netflix","Amazon Prime","Shahid"],"similarMovies":["Movie A","Movie B","Movie C"],"verdict":"Must Watch","opinion":"2-3 sentence honest opinion on whether Ibrahim should watch it"}`;
+  } else {
+    const tikPrefix = isTikTok ? `This is a TikTok video/creator about a learning topic. ` : '';
+    return `${tikPrefix}You are an expert in online learning, digital tools, and earning online. Analyze this learning resource from ${ctx}.
+Return ONLY valid JSON (no markdown):
+{"name":"Tool or course name","type":"TikTok Video/Course/Platform/Tool","teaches":"What this teaches in 1-2 sentences","isTikTok":${isTikTok},"tikTokCreator":"@username if TikTok or null","costType":"Free","costAmount":"Free / $29/month / $199","hasFreeTrisl":true,"effectiveness":8,"ease":"Beginner","timeToResults":"2-4 weeks","description":"3-4 sentences","keySkillsTaught":["s1","s2","s3"],"monetization":["Specific way 1","Way 2","Way 3"],"targetAudience":"Who this is for","recommendation":"2-3 sentence honest recommendation","verdict":"Highly Recommended","isEasy":true,"languageSupport":"English / Arabic"}`;
+  }
+}
+
+// ─── Free Movie Lookup (TMDb) ─────────────────────────────────────────────────
+async function analyzeMovieFree(title) {
+  const tmdbKey = localStorage.getItem('tmdb_key');
+  if (!tmdbKey) { toast('Add your TMDb API key in ⚙️ Settings', 'error'); openSettings(); return; }
+
+  const btn = document.getElementById('goBtn');
+  btn.classList.add('ld'); btn.disabled = true;
+
+  try {
+    toast('Searching for movie…', 'info');
+    const searchResp = await fetch(`https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(title)}&api_key=${tmdbKey}`);
+    if (!searchResp.ok) throw new Error('TMDb search failed — check your API key');
+    const searchData = await searchResp.json();
+    const hit = (searchData.results || []).find(r => r.media_type === 'movie' || r.media_type === 'tv');
+    if (!hit) { toast('Movie not found — check the spelling', 'error'); return; }
+
+    const mediaType = hit.media_type;
+    const id = hit.id;
+    const name = hit.title || hit.name || title;
+    const year = (hit.release_date || hit.first_air_date || '').slice(0, 4);
+
+    toast('Finding streaming platforms…', 'info');
+    const provResp = await fetch(`https://api.themoviedb.org/3/${mediaType}/${id}/watch/providers?api_key=${tmdbKey}`);
+    const provData = await provResp.json();
+    const regions = provData.results || {};
+    const prov = regions['SA'] || regions['AE'] || regions['US'] || Object.values(regions)[0] || {};
+
+    const streaming   = (prov.flatrate || []).map(p => p.provider_name);
+    const rent        = (prov.rent     || []).map(p => p.provider_name);
+    const buy         = (prov.buy      || []).map(p => p.provider_name);
+
+    const result = {
+      category: 'movie',
+      name, year,
+      type: mediaType === 'tv' ? 'Series' : 'Movie',
+      streamingPlatforms: streaming,
+      rentPlatforms: rent,
+      buyPlatforms: buy,
+      timestamp: new Date().toISOString(),
+      url: `https://www.themoviedb.org/${mediaType}/${id}`,
+      verdict: '', opinion: ''
+    };
+
+    current = result;
+    saveHist(result);
+    const sheetsUrl = localStorage.getItem('sheets_url');
+    if (sheetsUrl) await saveToSheets(result);
+
+    const sec = document.getElementById('results');
+    sec.classList.add('on');
+    sec.innerHTML = renderMovieSimple(result);
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast(`✅ Saved: ${name}`, 'success');
+
+  } catch(err) {
+    console.error(err);
+    toast(`Error: ${err.message}`, 'error');
+  } finally {
+    btn.classList.remove('ld'); btn.disabled = false;
+  }
+}
+
+function renderMovieSimple(r) {
+  const hasSub = r.streamingPlatforms.length > 0;
+  const hasRent = r.rentPlatforms.length > 0;
+  const hasBuy  = r.buyPlatforms.length > 0;
+  const noneFound = !hasSub && !hasRent && !hasBuy;
+
+  const pillRow = (list, color, label) => list.length ? `
+    <div style="margin-bottom:.75rem">
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem">${label}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+        ${list.map(p=>`<span style="background:rgba(${color},.12);border:1px solid rgba(${color},.28);color:#fff;padding:.32rem .8rem;border-radius:100px;font-size:.82rem;font-weight:600">📺 ${esc(p)}</span>`).join('')}
+      </div>
+    </div>` : '';
+
+  return `<div class="card" style="border-color:rgba(245,158,11,.3);padding:1.4rem">
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem">
+      <div style="font-size:2.2rem">🎬</div>
+      <div style="flex:1">
+        <div style="font-size:1.15rem;font-weight:800">${esc(r.name)}</div>
+        <div style="font-size:.8rem;color:var(--muted)">${r.year ? r.year+' · ' : ''}${r.type}</div>
+      </div>
+      <div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:var(--ok);padding:.35rem .85rem;border-radius:8px;font-size:.78rem;font-weight:700;white-space:nowrap">✅ Saved</div>
+    </div>
+    ${noneFound
+      ? `<div style="color:var(--muted);font-size:.86rem;padding:.5rem 0">⚠️ No streaming info found for your region — <a href="https://www.justwatch.com" target="_blank" style="color:var(--p)">check JustWatch.com</a></div>`
+      : pillRow(r.streamingPlatforms, '245,158,11', '🟢 Stream (subscription)')
+      + pillRow(r.rentPlatforms,      '99,102,241', '💳 Rent')
+      + pillRow(r.buyPlatforms,       '105,201,208','🛒 Buy')}
+    <div class="acts" style="padding:0;margin-top:1rem;border-top:none">
+      <button class="act grn" onclick="showPage('subs')">📋 All Submissions</button>
+      <a href="${esc(r.url)}" target="_blank" class="act sec">🔗 TMDb Page</a>
+    </div>
+  </div>`;
+}
+
+// ─── Display results ──────────────────────────────────────────────────────────
+function showResult(r, inDetail) {
+  const html = r.category === 'shopping' ? renderShopping(r) : r.category === 'movie' ? renderMovieSimple(r) : renderLearning(r);
+  if (inDetail) {
+    document.getElementById('detailContent').innerHTML = html;
+    document.getElementById('detailBg').classList.add('on');
+  } else {
+    const sec = document.getElementById('results');
+    sec.classList.add('on');
+    sec.innerHTML = html;
+    sec.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  if (r.category === 'learning') setTimeout(() => { const f = document.getElementById('effFill'); if(f) f.style.width = `${(r.effectiveness||0)*10}%`; }, 150);
+}
+
+function renderShopping(r) {
+  const pc = (r.platform||'').toLowerCase();
+  const em = pc==='amazon'?'🛒':pc==='iherb'?'🌿':'👗';
+  const stars = r.rating ? '★'.repeat(Math.round(r.rating))+'☆'.repeat(5-Math.round(r.rating)) : '';
+  const vc = (r.verdict||'').includes('Not')?'no':(r.verdict||'').includes('Rec')?'yes':'meh';
+  return `<div class="card" style="padding:0;overflow:hidden">
+    ${r.imageUrl?`<div class="prod-img-box"><img src="${esc(r.imageUrl)}" onerror="this.parentElement.innerHTML='<div style=padding:3rem;font-size:3rem;text-align:center>📦</div>'"></div>`:`<div class="prod-img-box" style="min-height:100px"><div style="font-size:3rem">📦</div></div>`}
+    <div class="ph">
+      <div class="plat-tag ${pc}">${em} ${esc(r.platform||'Shop')}</div>
+      <div class="prod-name">${esc(r.name||'Product')}</div>
+      ${r.brand?`<div class="brand-line">by ${esc(r.brand)}</div>`:''}
+      <div class="price-row">
+        <span class="price ${pc}">${esc(r.price||'N/A')}</span>
+        ${r.originalPrice&&r.originalPrice!==r.price?`<span class="orig">${esc(r.originalPrice)}</span>`:''}
+        ${r.discount?`<span class="disc">-${esc(r.discount)}</span>`:''}
+      </div>
+      ${r.rating?`<div class="star-row"><span class="stars">${stars}</span><strong>${r.rating}/5</strong>${r.reviewCount?`<span class="rv">(${Number(r.reviewCount).toLocaleString()} reviews)</span>`:''}</div>`:''}
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <span class="avail ${!(r.availability||'').includes('Out')?'in':'out'}">${!(r.availability||'').includes('Out')?'✅':'❌'} ${esc(r.availability||'Unknown')}</span>
+        ${r.shippingInfo?`<span class="avail in">🚚 ${esc(r.shippingInfo)}</span>`:''}
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" onclick="sw('sh','ov',this)">Overview</button>
+      <button class="tab" onclick="sw('sh','ft',this)">Features</button>
+      <button class="tab" onclick="sw('sh','pc',this)">Pros & Cons</button>
+      <button class="tab" onclick="sw('sh','op',this)">My Opinion</button>
+    </div>
+    <div id="tab-sh-ov" class="panel on"><p class="desc-txt">${esc(r.description||'')}</p></div>
+    <div id="tab-sh-ft" class="panel"><div class="feat-grid">${(r.features||[]).map(f=>`<div class="feat-item"><div class="dot"></div>${esc(f)}</div>`).join('')}</div></div>
+    <div id="tab-sh-pc" class="panel"><div class="pc-grid">
+      <div class="pc-box pros"><h4>✅ Pros</h4><ul>${(r.pros||[]).map(p=>`<li>✓ ${esc(p)}</li>`).join('')}</ul></div>
+      <div class="pc-box cons"><h4>❌ Cons</h4><ul>${(r.cons||[]).map(c=>`<li>✗ ${esc(c)}</li>`).join('')}</ul></div>
+    </div></div>
+    <div id="tab-sh-op" class="panel"><div class="verdict-box">
+      <div class="verdict-lbl">Ibrahim's Honest Verdict</div>
+      <div class="vc ${vc}">${esc(r.verdict||'?')}</div>
+      <p class="verdict-txt">${esc(r.opinion||'')}</p>
+    </div></div>
+    <div class="acts" style="flex-wrap:wrap">
+      <button class="act prim" onclick="saveToSheetsManual()">📊 Save to Sheet</button>
+      ${r.buyLink ? `<a href="${esc(r.buyLink)}" target="_blank" class="act sec">🛒 View Product</a>` : ''}
+      ${r.amazonLink ? `<a href="${esc(r.amazonLink)}" target="_blank" class="act sec" style="background:rgba(255,153,0,.1);border-color:rgba(255,153,0,.3);color:var(--amazon)">🛒 Amazon</a>` : ''}
+      ${r.iherbLink  ? `<a href="${esc(r.iherbLink)}"  target="_blank" class="act sec" style="background:rgba(111,190,68,.1);border-color:rgba(111,190,68,.3);color:var(--iherb)">🌿 iHerb</a>`   : ''}
+      ${r.sheinLink  ? `<a href="${esc(r.sheinLink)}"  target="_blank" class="act sec" style="background:rgba(233,30,140,.1);border-color:rgba(233,30,140,.3);color:var(--shein)">👗 Shein</a>`   : ''}
+      <button class="act grn" onclick="showPage('subs')">📋 All Submissions</button>
+    </div>
+  </div>`;
+}
+
+function renderLearning(r) {
+  const vc = r.verdict==='Highly Recommended'?'yes':r.verdict==='Skip'?'no':'meh';
+  const cc = r.costType==='Free'?'free':r.costType==='Freemium'?'freemium':'paid';
+  return `<div class="card" style="padding:0;overflow:hidden;border-color:rgba(16,185,129,.25)">
+    <div class="lh">
+      <div class="l-ico">${r.isTikTok?'🎵':'📚'}</div>
+      <div>
+        <div class="l-name">${esc(r.name||'Resource')}</div>
+        <div class="bdgs">
+          <span class="bdg type">📘 ${esc(r.type||'Resource')}</span>
+          ${r.isTikTok?`<span class="bdg tt">🎵 TikTok</span>`:''}
+          <span class="bdg ${cc}">${r.costType==='Free'?'🆓':'💰'} ${esc(r.costType||'?')}</span>
+          <span class="bdg ease">🎯 ${esc(r.ease||'?')}</span>
+          ${r.languageSupport?`<span class="bdg type">🌐 ${esc(r.languageSupport)}</span>`:''}
+        </div>
+        ${r.tikTokCreator?`<div style="font-size:.82rem;color:var(--tiktok);margin-bottom:.35rem">🎵 ${esc(r.tikTokCreator)}</div>`:''}
+        <div class="cost-big">${esc(r.costAmount||'?')}</div>
+        ${r.hasFreeTrisl?`<div class="free-trial">✅ Free trial available</div>`:''}
+      </div>
+    </div>
+    <div class="eff-sec">
+      <div class="eff-lbl"><span>Effectiveness Score</span><span>${r.effectiveness||0}/10</span></div>
+      <div class="eff-track"><div class="eff-fill" id="effFill" style="width:0%"></div></div>
+    </div>
+    ${r.timeToResults?`<div class="time-pill">⏱️ Results in: ${esc(r.timeToResults)}</div>`:''}
+    <div class="tabs">
+      <button class="tab on" onclick="sw('ln','ov',this)">Overview</button>
+      <button class="tab" onclick="sw('ln','sk',this)">Skills</button>
+      <button class="tab" onclick="sw('ln','earn',this)">💰 Earn Money</button>
+      <button class="tab" onclick="sw('ln','vd',this)">Verdict</button>
+    </div>
+    <div id="tab-ln-ov" class="panel on">
+      <p class="desc-txt" style="margin-bottom:.85rem">${esc(r.description||'')}</p>
+      <p class="desc-txt"><strong>Teaches:</strong> ${esc(r.teaches||'?')}</p>
+      <p class="desc-txt" style="margin-top:.65rem"><strong>Best for:</strong> ${esc(r.targetAudience||'?')}</p>
+      <p class="desc-txt" style="margin-top:.65rem"><strong>Easy to use?</strong> ${r.isEasy?'✅ Yes':'⚠️ Takes effort'}</p>
+    </div>
+    <div id="tab-ln-sk" class="panel"><div class="feat-grid">${(r.keySkillsTaught||[]).map(s=>`<div class="feat-item"><div class="dot" style="background:var(--learn)"></div>${esc(s)}</div>`).join('')}</div></div>
+    <div id="tab-ln-earn" class="panel"><ul class="mono-list">${(r.monetization||[]).map((m,i)=>`<li><span class="mi">${['💼','🚀','💡','🎯','📈'][i]||'💰'}</span>${esc(m)}</li>`).join('')}</ul></div>
+    <div id="tab-ln-vd" class="panel"><div class="verdict-box" style="border-left-color:${vc==='yes'?'var(--ok)':vc==='no'?'var(--err)':'var(--warn)'}">
+      <div class="verdict-lbl">Ibrahim's Recommendation</div>
+      <div class="vc ${vc}">${esc(r.verdict||'?')}</div>
+      <p class="verdict-txt">${esc(r.recommendation||'')}</p>
+    </div></div>
+    <div class="acts">
+      <button class="act prim" onclick="saveToSheetsManual()">📊 Save to Sheet</button>
+      ${r.url&&r.url!=='(image)'?`<a href="${esc(r.url)}" target="_blank" class="act sec">🔗 Visit Resource</a>`:''}
+      <button class="act grn" onclick="showPage('subs')">📋 All Submissions</button>
+    </div>
+  </div>`;
+}
+
+
+function sw(ctx, name, btn) {
+  document.querySelectorAll(`[id^="tab-${ctx}-"]`).forEach(e => e.classList.remove('on'));
+  btn.parentElement.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
+  document.getElementById(`tab-${ctx}-${name}`).classList.add('on');
+  btn.classList.add('on');
+}
+
+// ─── Submissions page ─────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  subFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderSubs();
+}
+
+function renderSubs() {
+  const hist = getHist();
+  const q = (document.getElementById('searchBox')?.value||'').toLowerCase();
+  const grid = document.getElementById('subGrid');
+  if (!grid) return;
+
+  let items = hist.filter(item => {
+    if (subFilter !== 'all' && item.category !== subFilter) return false;
+    if (q && !(item.name||'').toLowerCase().includes(q) && !(item.url||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (!items.length) {
+    grid.innerHTML = `<div class="sub-empty" style="grid-column:1/-1">
+      <div class="big">${subFilter==='shopping'?'🛍️':subFilter==='learning'?'📚':subFilter==='movie'?'🎬':'🔍'}</div>
+      <p>${hist.length===0?'No analyses yet — go to Analyze to get started!':'No results match your search.'}</p>
+      ${hist.length===0?`<button class="act prim" onclick="showPage('analyze')" style="display:inline-flex;max-width:200px">🚀 Analyze a Link</button>`:''}
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map((item, idx) => {
+    const histIdx = hist.indexOf(item);
+    const vc = (item.verdict||'').includes('Must')||(item.verdict||'').includes('Rec')&&!(item.verdict||'').includes('Not')?'yes':(item.verdict||'').includes('Not')||(item.verdict||'').includes('Skip')?'no':'meh';
+    const price = item.category==='shopping'?(item.price||''):item.category==='movie'?(item.imdbRating?`IMDb ${item.imdbRating}`:''):(item.costAmount||item.costType||'');
+    const catLabel = item.category==='shopping'?'🛍️ Shopping':item.category==='movie'?'🎬 Movie':'📚 Learning';
+    const platEmoji = item.category==='movie'?'🎬':/tiktok/i.test(item.url||'')?'🎵':/iherb/i.test(item.url||'')?'🌿':/shein/i.test(item.url||'')?'👗':item.category==='shopping'?'🛒':'📚';
+    return `<div class="sub-card" onclick="openDetail(${histIdx})">
+      <div class="sub-card-header">
+        <div class="sub-cat-badge ${item.category}">${catLabel}</div>
+        <div class="sub-name">${esc(item.name||'Unknown')}</div>
+        <div class="sub-meta">
+          ${platEmoji} ${esc(item.platform||item.type||'')}
+          ${price?`· <span class="sub-price">${esc(price)}</span>`:''}
+          ${item.verdict?`· <span class="sub-verdict ${vc}">${esc(item.verdict)}</span>`:''}
+        </div>
+      </div>
+      <div class="sub-footer">
+        <span class="sub-date">📅 ${new Date(item.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span>
+        <button class="sub-del" onclick="delSub(event,${histIdx})">🗑️ Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openDetail(idx) {
+  const item = getHist()[idx];
+  if (!item) return;
+  current = item;
+  showResult(item, true);
+}
+
+function closeDetail(e) { if (e.target.id === 'detailBg') closeDetailBtn(); }
+function closeDetailBtn() { document.getElementById('detailBg').classList.remove('on'); }
+
+function delSub(e, idx) {
+  e.stopPropagation();
+  const hist = getHist();
+  hist.splice(idx, 1);
+  localStorage.setItem('sla_hist', JSON.stringify(hist));
+  updateSubCount();
+  renderSubs();
+  toast('Deleted', 'info');
+}
+
+function updateSubCount() {
+  const el = document.getElementById('subCount');
+  if (el) el.textContent = getHist().length;
+}
+
+// ─── Sheets ───────────────────────────────────────────────────────────────────
+async function saveToSheetsManual() {
+  if (!current) { toast('No result to save.', 'error'); return; }
+  const url = localStorage.getItem('sheets_url');
+  if (!url) { toast('Set your Sheets Script URL in Settings first', 'error'); openSettings(); return; }
+  await saveToSheets(current);
+}
+async function saveToSheets(r) {
+  const url = localStorage.getItem('sheets_url');
+  if (!url) return;
+  try {
+    await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(r)});
+    toast('✅ Saved to Google Sheet!', 'success');
+  } catch { toast('Could not reach the Sheets script', 'error'); }
+}
+
+// ─── History ──────────────────────────────────────────────────────────────────
+function saveHist(r) {
+  const h = getHist();
+  h.unshift(r);
+  localStorage.setItem('sla_hist', JSON.stringify(h.slice(0, 50)));
+  updateSubCount();
+}
+function getHist() { try { return JSON.parse(localStorage.getItem('sla_hist')||'[]'); } catch { return []; } }
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+function openSettings() { document.getElementById('settingsModal').classList.add('on'); }
+function closeSettings() { document.getElementById('settingsModal').classList.remove('on'); }
+function saveSettings() {
+  const k = document.getElementById('apiKeyIn').value.trim();
+  const s = document.getElementById('sheetsIn').value.trim();
+  const t = document.getElementById('tmdbKeyIn').value.trim();
+  if (k) localStorage.setItem('api_key',k); else localStorage.removeItem('api_key');
+  if (s) localStorage.setItem('sheets_url',s); else localStorage.removeItem('sheets_url');
+  if (t) localStorage.setItem('tmdb_key',t); else localStorage.removeItem('tmdb_key');
+  checkApiKey(); closeSettings(); toast('Settings saved!', 'success');
+}
+function checkApiKey() {
+  document.getElementById('apiWarn').classList.toggle('on', !localStorage.getItem('api_key'));
+}
+document.getElementById('settingsModal').addEventListener('click', e => { if(e.target.id==='settingsModal') closeSettings(); });
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast on ${type}`;
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('on'), type === 'error' ? 8000 : 3200);
+}
+
+// ─── Util ─────────────────────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
